@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Améliorer une photo (Avant / Après)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    #uploader {
+      border: 2px dashed #888;
+      border-radius: 12px;
+      padding: 40px;
+      background: #fff;
+      width: 90%;
+      max-width: 400px;
+      cursor: pointer;
+      margin-bottom: 20px;
+      transition: background 0.3s;
+    }
+    #uploader:hover {
+      background: #eef7ff;
+    }
+    button {
+      margin-top: 15px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      background: #007bff;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    button:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+    #downloadBtn {
+      display: none;
+    }
+    #preview {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-top: 25px;
+    }
+    .preview-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: white;
+      border-radius: 10px;
+      padding: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .preview-box img {
+      max-width: 300px;
+      border-radius: 8px;
+    }
+    .label {
+      margin-top: 8px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Améliorer une photo (hors-ligne)</h1>
+
+  <div id="uploader">Clique ici ou dépose une image</div>
+  <input type="file" id="fileInput" accept="image/*" style="display:none" />
+
+  <button id="processBtn" disabled>Améliorer la qualité</button>
+  <button id="downloadBtn">Télécharger la photo améliorée</button>
+
+  <div id="preview">
+    <div class="preview-box" id="beforeBox" style="display:none;">
+      <img id="beforeImage" alt="Avant">
+      <div class="label">Avant</div>
+    </div>
+    <div class="preview-box" id="afterBox" style="display:none;">
+      <img id="afterImage" alt="Après">
+      <div class="label">Après</div>
+    </div>
+  </div>
+
+  <script>
+    const uploader = document.getElementById("uploader");
+    const fileInput = document.getElementById("fileInput");
+    const processBtn = document.getElementById("processBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const beforeBox = document.getElementById("beforeBox");
+    const afterBox = document.getElementById("afterBox");
+    const beforeImage = document.getElementById("beforeImage");
+    const afterImage = document.getElementById("afterImage");
+
+    let imgSrc = null;
+
+    uploader.addEventListener("click", () => fileInput.click());
+    uploader.addEventListener("dragover", e => e.preventDefault());
+    uploader.addEventListener("drop", e => {
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+    fileInput.addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (file) handleFile(file);
+    });
+
+    function handleFile(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        imgSrc = e.target.result;
+        beforeImage.src = imgSrc;
+        beforeBox.style.display = "flex";
+        afterBox.style.display = "none";
+        downloadBtn.style.display = "none";
+        processBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    processBtn.addEventListener("click", async () => {
+      if (!imgSrc) return;
+      processBtn.disabled = true;
+      processBtn.textContent = "Traitement...";
+      try {
+        const hdDataUrl = await enhanceImage(imgSrc);
+        afterImage.src = hdDataUrl;
+        afterBox.style.display = "flex";
+        downloadBtn.style.display = "inline-block";
+        downloadBtn.onclick = () => downloadHD(hdDataUrl);
+      } catch (err) {
+        alert("Erreur : " + err.message);
+      }
+      processBtn.textContent = "Améliorer la qualité";
+      processBtn.disabled = false;
+    });
+
+    function enhanceImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0);
+
+          try {
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const d = imgData.data;
+
+            // Amélioration douce des couleurs + contraste + netteté
+            for (let i = 0; i < d.length; i += 4) {
+              // légère saturation
+              d[i] = Math.min(255, d[i] * 1.06);
+              d[i + 1] = Math.min(255, d[i + 1] * 1.06);
+              d[i + 2] = Math.min(255, d[i + 2] * 1.06);
+
+              // léger contraste
+              const avg = (d[i] + d[i+1] + d[i+2]) / 3;
+              d[i] += (d[i] - avg) * 0.15;
+              d[i+1] += (d[i+1] - avg) * 0.15;
+              d[i+2] += (d[i+2] - avg) * 0.15;
+            }
+
+            // Appliquer un petit effet de netteté
+            ctx.putImageData(imgData, 0, 0);
+          } catch {}
+
+          const hdDataUrl = canvas.toDataURL("image/jpeg", 0.95);
+          resolve(hdDataUrl);
+        };
+        img.onerror = () => reject(new Error("Impossible de charger l'image"));
+        img.src = src;
+      });
+    }
+
+    function downloadHD(dataUrl) {
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = "photo_amelioree.jpg";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  </script>
+</body>
+</html>
