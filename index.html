@@ -88,16 +88,13 @@
     #downloadBtn:hover {
       background: #388bfd;
     }
-    a {
-      color: #58a6ff;
-    }
   </style>
 </head>
 <body>
   <h1>Améliorer une photo en HD</h1>
   <p style="color:#8b949e;max-width:500px;">
     Importez une image et laissez l’IA la transformer en haute qualité ✨<br>
-    (Utilise l’API Veloria - nécessite une connexion Internet)
+    (via API Veloria + Proxy)
   </p>
 
   <div id="uploader">📸 Cliquez ici ou déposez une image (JPEG/PNG)</div>
@@ -167,7 +164,7 @@
       status.textContent = '⏳ Téléversement de l’image...';
 
       try {
-        // Étape 1 : envoi vers Catbox pour obtenir une URL publique
+        // Étape 1 : upload vers Catbox
         const formData = new FormData();
         formData.append('reqtype', 'fileupload');
         formData.append('fileToUpload', uploadedFile);
@@ -180,14 +177,17 @@
 
         if (!imageUrl.startsWith('http')) throw new Error('Échec du téléversement.');
 
-        status.textContent = '🧠 Amélioration en cours via l’API...';
+        status.textContent = '🧠 Amélioration en cours (via proxy sécurisé)...';
 
-        // Étape 2 : appel de l’API Veloria
-        const upscaleUrl = `https://www.veloria.my.id/imagecreator/upscale?url=${encodeURIComponent(imageUrl)}`;
-        const response = await fetch(upscaleUrl);
+        // Étape 2 : appel API via proxy (pour contourner le CORS)
+        const apiUrl = `https://www.veloria.my.id/imagecreator/upscale?url=${encodeURIComponent(imageUrl)}`;
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
+        const response = await fetch(proxyUrl);
+
+        if (!response.ok) throw new Error('Échec de la requête API.');
         const blob = await response.blob();
 
-        if (!blob || blob.size < 1000) throw new Error('L’API a retourné une image invalide.');
+        if (!blob || blob.size < 1000) throw new Error('Image HD non valide.');
 
         // Étape 3 : affichage du résultat
         const hdImageUrl = URL.createObjectURL(blob);
